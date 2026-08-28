@@ -1,0 +1,27 @@
+modLoader="javafxmod"
+loaderVersion="[54,)"
+license="MIT"
+
+[[mods]]
+modId="autoclicksellmod"
+version="1.0.0"
+displayName="Auto Click Sell Mod"
+logoFile="icon.png"
+credits="trungnam-vn"
+authors="trungnam"
+description='''Auto click SELL button in shop GUI. Features: Automatically click SELL button, Auto confirm sale, Toggle with V key.'''
+displayURL="https://github.com/trungnam-vn/AutoClickSellMod"
+
+[[dependencies.autoclicksellmod]]
+    modId="forge"
+    mandatory=true
+    versionRange="[54,)"
+    ordering="NONE"
+    side="CLIENT"
+
+[[dependencies.autoclicksellmod]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.21.1,1.22)"
+    ordering="NONE"
+    side="CLIENT"

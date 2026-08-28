@@ -1,0 +1,35 @@
+# gradle
+.gradle/
+build/
+out/
+classes/
+
+# eclipse
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# idea
+.idea/
+*.iml
+*.ipr
+*.iws
+*.iml
+out/
+
+# Mac
+.DS_Store
+
+# vscode
+.vscode/
+
+# personal
+run/

@@ -46,7 +46,8 @@ public final class AutoFighterAIClient implements ClientModInitializer {
     private static final double APPROACH_RESUME_SQUARED = 3.0 * 3.0;
     private static final Random RANDOM = new Random();
     private static final Path CONFIG = FabricLoader.getInstance().getConfigDir().resolve("autofighterai.properties");
-    private static KeyBinding toggleKey;
+    private static KeyBinding toggleKey, guiKey;
+    private static boolean guiOpenRequested;
     private static int ticks, eatTicks, foodUses, previousSlot = -1;
     private static int mobCooldown, healthCooldown, dodgeCooldown, dodgeTicks, jumpTicks;
     private static boolean dodgeLeft, jumpPending;
@@ -60,6 +61,10 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         loadSettings();
         toggleKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
             "key.autofighterai.toggle", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G,
+            "category.autofighterai"
+        ));
+        guiKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+            "key.autofighterai.gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_H,
             "category.autofighterai"
         ));
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
@@ -139,6 +144,15 @@ public final class AutoFighterAIClient implements ClientModInitializer {
     }
 
     private static void onTick(MinecraftClient client) {
+        // Commands are invoked while ChatScreen is still handling Enter. Defer screen
+        // opening until the tick ends so ChatScreen cannot immediately close/overwrite it.
+        if (guiOpenRequested) {
+            guiOpenRequested = false;
+            if (client != null) client.setScreen(new AutoFighterScreen());
+        }
+        while (guiKey.wasPressed()) {
+            if (client != null) client.setScreen(new AutoFighterScreen());
+        }
         while (toggleKey.wasPressed()) {
             enabled = !enabled;
             if (!enabled) {
@@ -307,8 +321,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
     }
 
     private static void openGui() {
-        MinecraftClient client = MinecraftClient.getInstance();
-        if (client != null) client.setScreen(new AutoFighterScreen());
+        guiOpenRequested = true;
     }
 
     private static void setAIForward(MinecraftClient client, boolean pressed) {

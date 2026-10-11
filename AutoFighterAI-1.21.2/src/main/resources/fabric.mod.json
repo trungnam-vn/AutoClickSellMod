@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "autofighterai",
+  "version": "${version}",
+  "name": "Auto Fighter AI",
+  "description": "Client-side combat helper for Minecraft 1.21.2: attacks hostile mobs, aims at torso, eats emergency food, and uses a 30% jump-attack chance.",
+  "authors": ["HIKARI_138"],
+  "environment": "client",
+  "entrypoints": {
+    "client": ["hikari.autofighterai.AutoFighterAIClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.2",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

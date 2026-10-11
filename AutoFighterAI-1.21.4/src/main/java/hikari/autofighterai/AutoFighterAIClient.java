@@ -54,7 +54,8 @@ public final class AutoFighterAIClient implements ClientModInitializer {
     // Track only key states this mod itself pressed so normal player movement is not blocked.
     private static boolean aiForward, aiSprint, aiLeft, aiRight;
     private static boolean approachMoving;
-    private static HostileEntity jumpTarget;
+    private static HostileEntity cachedTarget, jumpTarget;
+    private static int targetScanCooldown;
 
     @Override
     public void onInitializeClient() {
@@ -194,7 +195,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
             }
         }
 
-        HostileEntity target = nearestHostile(client);
+        HostileEntity target = getCachedTarget(client);
         if (target == null) {
             stopMovement(client);
             resetJump();
@@ -275,6 +276,23 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         }
     }
 
+    // Refresh target selection every 4 ticks instead of scanning nearby entities on every tick.
+    // Invalid/out-of-range targets are discarded immediately to keep response time predictable.
+    private static HostileEntity getCachedTarget(MinecraftClient client) {
+        if (cachedTarget != null && (!cachedTarget.isAlive() || cachedTarget.isRemoved()
+            || client.player.squaredDistanceTo(cachedTarget) > RANGE_SQUARED)) {
+            cachedTarget = null;
+            targetScanCooldown = 0;
+        }
+        if (targetScanCooldown <= 0) {
+            cachedTarget = nearestHostile(client);
+            targetScanCooldown = 4;
+        } else {
+            targetScanCooldown--;
+        }
+        return cachedTarget;
+    }
+
     private static HostileEntity nearestHostile(MinecraftClient client) {
         return client.world.getEntitiesByClass(HostileEntity.class, client.player.getBoundingBox().expand(20),
             e -> e.isAlive() && !e.isRemoved() && client.player.squaredDistanceTo(e) <= RANGE_SQUARED)
@@ -325,27 +343,27 @@ public final class AutoFighterAIClient implements ClientModInitializer {
     }
 
     private static void setAIForward(MinecraftClient client, boolean pressed) {
-        if (client == null || client.options == null) return;
-        if (pressed) { client.options.forwardKey.setPressed(true); aiForward = true; }
-        else if (aiForward) { client.options.forwardKey.setPressed(false); aiForward = false; }
+        if (client == null || client.options == null || aiForward == pressed) return;
+        client.options.forwardKey.setPressed(pressed);
+        aiForward = pressed;
     }
 
     private static void setAISprint(MinecraftClient client, boolean pressed) {
-        if (client == null || client.options == null) return;
-        if (pressed) { client.options.sprintKey.setPressed(true); aiSprint = true; }
-        else if (aiSprint) { client.options.sprintKey.setPressed(false); aiSprint = false; }
+        if (client == null || client.options == null || aiSprint == pressed) return;
+        client.options.sprintKey.setPressed(pressed);
+        aiSprint = pressed;
     }
 
     private static void setAILeft(MinecraftClient client, boolean pressed) {
-        if (client == null || client.options == null) return;
-        if (pressed) { client.options.leftKey.setPressed(true); aiLeft = true; }
-        else if (aiLeft) { client.options.leftKey.setPressed(false); aiLeft = false; }
+        if (client == null || client.options == null || aiLeft == pressed) return;
+        client.options.leftKey.setPressed(pressed);
+        aiLeft = pressed;
     }
 
     private static void setAIRight(MinecraftClient client, boolean pressed) {
-        if (client == null || client.options == null) return;
-        if (pressed) { client.options.rightKey.setPressed(true); aiRight = true; }
-        else if (aiRight) { client.options.rightKey.setPressed(false); aiRight = false; }
+        if (client == null || client.options == null || aiRight == pressed) return;
+        client.options.rightKey.setPressed(pressed);
+        aiRight = pressed;
     }
 
     private static void updateApproachMovement(MinecraftClient client, double dist) {

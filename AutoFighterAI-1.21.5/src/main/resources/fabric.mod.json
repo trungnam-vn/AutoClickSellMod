@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "autofighterai",
+  "version": "${version}",
+  "name": "Auto Fighter AI — Target Lock & Glow",
+  "description": "Fabric 1.21.4 client mod for Minecraft 1.21.5 with stable hostile target lock, spectral-arrow-style outline, and configurable combat helper features.",
+  "authors": ["HIKARI_138"],
+  "environment": "client",
+  "entrypoints": { "client": ["hikari.autofighterai.AutoFighterAIClient"] },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.5",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

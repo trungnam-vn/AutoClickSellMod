@@ -1,4 +1,4 @@
-name: Build Auto Fighter AI GUI 1.21.4
+name: Build Auto Fighter AI Optimized 1.21.4
 
 on:
   push:
@@ -28,13 +28,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          JAR="AutoFighterAI-1.21.4/build/libs/AutoFighterAI-1.21.4-GUI-0.5.0.jar"
+          JAR="AutoFighterAI-1.21.4/build/libs/AutoFighterAI-1.21.4-OPTIMIZED-0.6.0.jar"
           test -s "$JAR"
           jar tf "$JAR" | grep -E 'fabric.mod.json|AutoFighterAIClient.class|AutoFighterScreen.class'
           unzip -p "$JAR" fabric.mod.json | grep -q '"id": "autofighterai"'
       - uses: actions/upload-artifact@v4
         with:
-          name: AutoFighterAI-1.21.4-GUI-JAR
-          path: AutoFighterAI-1.21.4/build/libs/AutoFighterAI-1.21.4-GUI-0.5.0.jar
+          name: AutoFighterAI-1.21.4-OPTIMIZED-JAR
+          path: AutoFighterAI-1.21.4/build/libs/AutoFighterAI-1.21.4-OPTIMIZED-0.6.0.jar
           if-no-files-found: error
           retention-days: 30

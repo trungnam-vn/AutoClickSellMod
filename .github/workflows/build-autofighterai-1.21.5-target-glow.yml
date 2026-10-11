@@ -3,7 +3,7 @@ name: Build Auto Fighter AI Target Lock Glow 1.21.5
 on:
   push:
     branches:
-      - autofighterai-1.21.5-gui
+      - autofighterai-1.21.5-target-glow
   workflow_dispatch:
 
 permissions:

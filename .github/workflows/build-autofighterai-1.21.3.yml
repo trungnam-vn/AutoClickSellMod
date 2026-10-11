@@ -1,4 +1,4 @@
-name: Build Auto Fighter AI 1.21.3
+name: Build Auto Fighter AI Safe Helper 1.21.3
 
 on:
   push:
@@ -36,14 +36,15 @@ jobs:
         run: |
           set -euo pipefail
           ls -lh AutoFighterAI-1.21.3/build/libs
-          JAR="AutoFighterAI-1.21.3/build/libs/AutoFighterAI-1.21.3-0.1.0.jar"
+          JAR="AutoFighterAI-1.21.3/build/libs/AutoFighterAI-1.21.3-SafeHelper-0.3.0.jar"
           test -s "$JAR"
           jar tf "$JAR" | grep -E 'fabric.mod.json|AutoFighterAIClient.class'
-
+          ! unzip -p "$JAR" fabric.mod.json | grep -qi 'combat helper'
+          
       - name: Upload remapped JAR
         uses: actions/upload-artifact@v4
         with:
-          name: AutoFighterAI-1.21.3-JAR
-          path: AutoFighterAI-1.21.3/build/libs/AutoFighterAI-1.21.3-0.1.0.jar
+          name: AutoFighterAI-1.21.3-SafeHelper-JAR
+          path: AutoFighterAI-1.21.3/build/libs/AutoFighterAI-1.21.3-SafeHelper-0.3.0.jar
           if-no-files-found: error
           retention-days: 30

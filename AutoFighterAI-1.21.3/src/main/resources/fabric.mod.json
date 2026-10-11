@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "autofighterai",
   "version": "${version}",
-  "name": "Auto Fighter AI",
-  "description": "Client-side combat helper for Minecraft 1.21.3: targets hostile mobs, aims at torso, eats emergency food, and uses a 30% jump-attack chance.",
+  "name": "Auto Fighter AI Safe Helper",
+  "description": "Client-side alert helper for Minecraft 1.21.3. Detects hostile mobs within 20 blocks and warns at low health. It does not aim, jump, or attack.",
   "authors": ["HIKARI_138"],
   "environment": "client",
   "entrypoints": {

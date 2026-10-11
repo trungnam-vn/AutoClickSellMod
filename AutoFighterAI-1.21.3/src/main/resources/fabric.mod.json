@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "autofighterai",
   "version": "${version}",
-  "name": "Auto Fighter AI Safe Helper",
-  "description": "Client-side alert helper for Minecraft 1.21.3. Detects hostile mobs within 20 blocks and warns at low health. It does not aim, jump, or attack.",
+  "name": "Auto Fighter AI V2",
+  "description": "Minecraft Fabric 1.21.3 combat assistant with target acquisition, melee approach, 30 percent jump-attack chance, emergency food and lateral dodge.",
   "authors": ["HIKARI_138"],
   "environment": "client",
   "entrypoints": {

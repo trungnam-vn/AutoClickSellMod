@@ -47,6 +47,8 @@ public final class AutoFighterAIClient implements ClientModInitializer {
     private static int ticks, eatTicks, foodUses, previousSlot = -1;
     private static int mobCooldown, healthCooldown, dodgeCooldown, dodgeTicks, jumpTicks;
     private static boolean dodgeLeft, jumpPending;
+    // Track only key states this mod itself pressed so normal player movement is not blocked.
+    private static boolean aiForward, aiSprint, aiLeft, aiRight;
     private static HostileEntity jumpTarget;
 
     @Override
@@ -59,9 +61,10 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
             dispatcher.register(literal("autofighterai")
                 .executes(context -> {
-                    MinecraftClient.getInstance().send(() -> MinecraftClient.getInstance().setScreen(new AutoFighterScreen()));
+                    openGui();
                     return 1;
                 })
+                .then(literal("gui").executes(context -> { openGui(); return 1; }))
                 .then(literal("on").executes(context -> {
                     enabled = true; saveSettings();
                     context.getSource().sendFeedback(Text.literal("Auto Fighter AI: ON"));
@@ -81,6 +84,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
                             context.getSource().sendFeedback(Text.literal("Auto Fighter AI feature '" + name + "' = " + state));
                             return 1;
                         }))));
+            dispatcher.register(literal("afai").executes(context -> { openGui(); return 1; }));
         });
         ClientTickEvents.END_CLIENT_TICK.register(AutoFighterAIClient::onTick);
     }
@@ -199,7 +203,8 @@ public final class AutoFighterAIClient implements ClientModInitializer {
             } else {
                 target = jumpTarget;
                 dist = client.player.squaredDistanceTo(target);
-                if (approachEnabled) client.options.forwardKey.setPressed(dist > ATTACK_RANGE_SQUARED);
+                if (approachEnabled) setAIForward(client, dist > ATTACK_RANGE_SQUARED);
+                else setAIForward(client, false);
                 if (attackEnabled && dist <= ATTACK_RANGE_SQUARED && !client.player.isOnGround()
                     && client.player.getVelocity().y < 0 && client.player.fallDistance > 0
                     && client.player.getAttackCooldownProgress(0.5F) >= 1.0F) {
@@ -212,11 +217,11 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         }
 
         if (approachEnabled) {
-            client.options.forwardKey.setPressed(dist > ATTACK_RANGE_SQUARED);
-            client.options.sprintKey.setPressed(dist > 64.0);
+            setAIForward(client, dist > ATTACK_RANGE_SQUARED);
+            setAISprint(client, dist > 64.0);
         } else {
-            client.options.forwardKey.setPressed(false);
-            client.options.sprintKey.setPressed(false);
+            setAIForward(client, false);
+            setAISprint(client, false);
         }
 
         if (dodgeEnabled && dist <= 16.0 && dodgeCooldown == 0 && client.player.hurtTime > 0) {
@@ -225,12 +230,12 @@ public final class AutoFighterAIClient implements ClientModInitializer {
             dodgeCooldown = 32;
         }
         if (dodgeEnabled && dodgeTicks > 0) {
-            client.options.leftKey.setPressed(dodgeLeft);
-            client.options.rightKey.setPressed(!dodgeLeft);
+            setAILeft(client, dodgeLeft);
+            setAIRight(client, !dodgeLeft);
             dodgeTicks--;
         } else {
-            client.options.leftKey.setPressed(false);
-            client.options.rightKey.setPressed(false);
+            setAILeft(client, false);
+            setAIRight(client, false);
         }
 
         if (attackEnabled && dist <= ATTACK_RANGE_SQUARED
@@ -238,8 +243,8 @@ public final class AutoFighterAIClient implements ClientModInitializer {
             selectWeapon(client);
             if (jumpAttackEnabled && client.player.isOnGround() && RANDOM.nextDouble() < 0.30) {
                 jumpPending = true; jumpTicks = 0; jumpTarget = target;
-                client.options.forwardKey.setPressed(false);
-                client.options.sprintKey.setPressed(false);
+                setAIForward(client, false);
+                setAISprint(client, false);
                 client.player.jump();
                 return;
             }
@@ -254,8 +259,8 @@ public final class AutoFighterAIClient implements ClientModInitializer {
     }
 
     private static void attack(MinecraftClient client, HostileEntity target) {
-        client.options.forwardKey.setPressed(false);
-        client.options.sprintKey.setPressed(false);
+        setAIForward(client, false);
+        setAISprint(client, false);
         client.interactionManager.attackEntity(client.player, target);
         client.player.swingHand(Hand.MAIN_HAND);
     }
@@ -276,8 +281,11 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         double dx = target.getX() - p.getX(), dz = target.getZ() - p.getZ();
         double dy = target.getY() + target.getHeight() * 0.55 - p.getEyeY();
         double horizontal = Math.sqrt(dx * dx + dz * dz);
-        p.setYaw((float)(MathHelper.atan2(dz, dx) * 180 / Math.PI) - 90);
-        p.setPitch((float)(-MathHelper.atan2(dy, horizontal) * 180 / Math.PI));
+        float desiredYaw = (float)(MathHelper.atan2(dz, dx) * 180 / Math.PI) - 90;
+        float yawDelta = MathHelper.wrapDegrees(desiredYaw - p.getYaw());
+        p.setYaw(p.getYaw() + MathHelper.clamp(yawDelta, -9.0F, 9.0F));
+        float desiredPitch = (float)(-MathHelper.atan2(dy, horizontal) * 180 / Math.PI);
+        p.setPitch(p.getPitch() + MathHelper.clamp(desiredPitch - p.getPitch(), -6.0F, 6.0F));
     }
 
     private static int findFoodSlot(MinecraftClient client) {
@@ -288,11 +296,40 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         return -1;
     }
 
-    private static void stopMovement(MinecraftClient client) {
+    private static void openGui() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        if (client != null) client.setScreen(new AutoFighterScreen());
+    }
+
+    private static void setAIForward(MinecraftClient client, boolean pressed) {
         if (client == null || client.options == null) return;
-        client.options.forwardKey.setPressed(false); client.options.backKey.setPressed(false);
-        client.options.leftKey.setPressed(false); client.options.rightKey.setPressed(false);
-        client.options.sprintKey.setPressed(false); client.options.jumpKey.setPressed(false);
+        if (pressed) { client.options.forwardKey.setPressed(true); aiForward = true; }
+        else if (aiForward) { client.options.forwardKey.setPressed(false); aiForward = false; }
+    }
+
+    private static void setAISprint(MinecraftClient client, boolean pressed) {
+        if (client == null || client.options == null) return;
+        if (pressed) { client.options.sprintKey.setPressed(true); aiSprint = true; }
+        else if (aiSprint) { client.options.sprintKey.setPressed(false); aiSprint = false; }
+    }
+
+    private static void setAILeft(MinecraftClient client, boolean pressed) {
+        if (client == null || client.options == null) return;
+        if (pressed) { client.options.leftKey.setPressed(true); aiLeft = true; }
+        else if (aiLeft) { client.options.leftKey.setPressed(false); aiLeft = false; }
+    }
+
+    private static void setAIRight(MinecraftClient client, boolean pressed) {
+        if (client == null || client.options == null) return;
+        if (pressed) { client.options.rightKey.setPressed(true); aiRight = true; }
+        else if (aiRight) { client.options.rightKey.setPressed(false); aiRight = false; }
+    }
+
+    private static void stopMovement(MinecraftClient client) {
+        setAIForward(client, false);
+        setAISprint(client, false);
+        setAILeft(client, false);
+        setAIRight(client, false);
     }
 
     private static void stopEating(MinecraftClient client) {

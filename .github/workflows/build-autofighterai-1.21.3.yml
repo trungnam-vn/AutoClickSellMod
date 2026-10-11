@@ -1,0 +1,49 @@
+name: Build Auto Fighter AI 1.21.3
+
+on:
+  push:
+    branches:
+      - autofighterai-1.21.3-build
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install Gradle 9.6.0
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.6.0'
+
+      - name: Build and remap JAR
+        run: gradle --no-daemon --stacktrace clean build
+        working-directory: AutoFighterAI-1.21.3
+
+      - name: Verify release JAR
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -lh AutoFighterAI-1.21.3/build/libs
+          JAR="AutoFighterAI-1.21.3/build/libs/AutoFighterAI-1.21.3-0.1.0.jar"
+          test -s "$JAR"
+          jar tf "$JAR" | grep -E 'fabric.mod.json|AutoFighterAIClient.class'
+
+      - name: Upload remapped JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoFighterAI-1.21.3-JAR
+          path: AutoFighterAI-1.21.3/build/libs/AutoFighterAI-1.21.3-0.1.0.jar
+          if-no-files-found: error
+          retention-days: 30

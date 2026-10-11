@@ -83,7 +83,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
                             setFeature(name, state);
                             context.getSource().sendFeedback(Text.literal("Auto Fighter AI feature '" + name + "' = " + state));
                             return 1;
-                        }))));
+                        })))));
             dispatcher.register(literal("afai").executes(context -> { openGui(); return 1; }));
         });
         ClientTickEvents.END_CLIENT_TICK.register(AutoFighterAIClient::onTick);

@@ -5,68 +5,60 @@ import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
-/** Small client GUI with independent switches. Open using /autofighterai. */
 public final class AutoFighterScreen extends Screen {
-    private ButtonWidget combatButton;
-    private ButtonWidget dodgeButton;
-    private ButtonWidget eatButton;
+    private static final int BUTTON_W = 178;
+    private static final int BUTTON_H = 20;
+    private int leftX, rightX, topY;
 
-    public AutoFighterScreen() {
-        super(Text.literal("Auto Fighter AI"));
-    }
+    public AutoFighterScreen() { super(Text.literal("Auto Fighter AI — Control Panel")); }
 
     @Override
     protected void init() {
-        int centerX = this.width / 2;
-        int top = Math.max(58, this.height / 2 - 72);
-        int buttonWidth = Math.min(270, this.width - 36);
-        int left = centerX - buttonWidth / 2;
+        int gap = 8;
+        leftX = this.width / 2 - BUTTON_W - gap / 2;
+        rightX = this.width / 2 + gap / 2;
+        topY = this.height / 2 - 65;
+        int y = topY;
+        addToggle("Master AI", "ai", () -> AutoFighterAIClient.enabled, leftX, y);
+        addToggle("Auto Attack", "attack", () -> AutoFighterAIClient.attackEnabled, rightX, y);
+        y += 26;
+        addToggle("Approach Target", "approach", () -> AutoFighterAIClient.approachEnabled, leftX, y);
+        addToggle("Jump Attack (30%)", "jump", () -> AutoFighterAIClient.jumpAttackEnabled, rightX, y);
+        y += 26;
+        addToggle("Dodge Sideways", "dodge", () -> AutoFighterAIClient.dodgeEnabled, leftX, y);
+        addToggle("Auto Eat at Low HP", "eat", () -> AutoFighterAIClient.autoEatEnabled, rightX, y);
+        y += 26;
+        addToggle("Mob / Health Alerts", "alerts", () -> AutoFighterAIClient.targetAlertsEnabled, leftX, y);
+        addDrawableChild(ButtonWidget.builder(Text.literal("Close"), b -> close())
+            .dimensions(rightX, y, BUTTON_W, BUTTON_H).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Enable All"), b -> {
+            for (String n : new String[]{"ai","attack","approach","jump","dodge","eat","alerts"})
+                AutoFighterAIClient.setFeature(n, true);
+            clearAndInit();
+        }).dimensions(leftX, y, BUTTON_W, BUTTON_H).build());
+    }
 
-        combatButton = this.addDrawableChild(ButtonWidget.builder(combatLabel(), button -> {
-            AutoFighterAIClient.setCombatEnabled(!AutoFighterAIClient.combatEnabled());
-            combatButton.setMessage(combatLabel());
-        }).dimensions(left, top, buttonWidth, 22).build());
+    private void addToggle(String label, String key, java.util.function.BooleanSupplier getter, int x, int y) {
+        addDrawableChild(ButtonWidget.builder(buttonText(label, getter.getAsBoolean()), b -> {
+            AutoFighterAIClient.setFeature(key, !getter.getAsBoolean());
+            b.setMessage(buttonText(label, getter.getAsBoolean()));
+        }).dimensions(x, y, BUTTON_W, BUTTON_H).build());
+    }
 
-        dodgeButton = this.addDrawableChild(ButtonWidget.builder(dodgeLabel(), button -> {
-            AutoFighterAIClient.setDodgeEnabled(!AutoFighterAIClient.dodgeEnabled());
-            dodgeButton.setMessage(dodgeLabel());
-        }).dimensions(left, top + 30, buttonWidth, 22).build());
-
-        eatButton = this.addDrawableChild(ButtonWidget.builder(eatLabel(), button -> {
-            AutoFighterAIClient.setAutoEatEnabled(!AutoFighterAIClient.autoEatEnabled());
-            eatButton.setMessage(eatLabel());
-        }).dimensions(left, top + 60, buttonWidth, 22).build());
-
-        this.addDrawableChild(ButtonWidget.builder(Text.literal("Đóng"), button -> this.close())
-            .dimensions(centerX - 60, top + 100, 120, 22).build());
+    private Text buttonText(String label, boolean state) {
+        return Text.literal(label + ": " + (state ? "ON" : "OFF"));
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        context.drawCenteredTextWithShadow(this.textRenderer, this.title, this.width / 2, 28, 0xFFFFFF);
-        context.drawCenteredTextWithShadow(this.textRenderer,
-            Text.literal("Bật riêng từng tính năng theo tình huống"), this.width / 2, 42, 0xB8C5D6);
+        renderBackground(context, mouseX, mouseY, delta);
+        context.drawCenteredTextWithShadow(textRenderer, title, width / 2, topY - 27, 0xFFFFFF);
+        context.drawCenteredTextWithShadow(textRenderer,
+            Text.literal("Choose only the features you need; settings are saved."),
+            width / 2, topY - 13, 0xB8C7FF);
         super.render(context, mouseX, mouseY, delta);
     }
 
     @Override
-    public boolean shouldPause() {
-        return false;
-    }
-
-    private static Text combatLabel() {
-        return Text.literal("Chiến đấu tự động: " + state(AutoFighterAIClient.combatEnabled()));
-    }
-
-    private static Text dodgeLabel() {
-        return Text.literal("Né đòn: " + state(AutoFighterAIClient.dodgeEnabled()));
-    }
-
-    private static Text eatLabel() {
-        return Text.literal("Tự ăn khi máu thấp: " + state(AutoFighterAIClient.autoEatEnabled()));
-    }
-
-    private static String state(boolean enabled) {
-        return enabled ? "§aBẬT" : "§cTẮT";
-    }
+    public boolean shouldPause() { return false; }
 }

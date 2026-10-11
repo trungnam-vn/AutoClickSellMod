@@ -20,7 +20,7 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.12.1'
+          gradle-version: '8.10.2'
       - name: Build and remap JAR
         run: gradle --no-daemon --stacktrace clean build
         working-directory: AutoFighterAI-1.21.4
@@ -28,13 +28,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          JAR="AutoFighterAI-1.21.4/build/libs/AutoFighterAI-1.21.4-GUI-1.0.0.jar"
+          JAR="AutoFighterAI-1.21.4/build/libs/AutoFighterAI-1.21.4-GUI-0.5.0.jar"
           test -s "$JAR"
           jar tf "$JAR" | grep -E 'fabric.mod.json|AutoFighterAIClient.class|AutoFighterScreen.class'
           unzip -p "$JAR" fabric.mod.json | grep -q '"id": "autofighterai"'
       - uses: actions/upload-artifact@v4
         with:
           name: AutoFighterAI-1.21.4-GUI-JAR
-          path: AutoFighterAI-1.21.4/build/libs/AutoFighterAI-1.21.4-GUI-1.0.0.jar
+          path: AutoFighterAI-1.21.4/build/libs/AutoFighterAI-1.21.4-GUI-0.5.0.jar
           if-no-files-found: error
           retention-days: 30

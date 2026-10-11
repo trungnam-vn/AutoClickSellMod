@@ -3,12 +3,10 @@
   "id": "autofighterai",
   "version": "${version}",
   "name": "Auto Fighter AI GUI",
-  "description": "Minecraft Fabric 1.21.4 client-side helper with an in-game GUI and independently toggled combat, dodge, and low-health food features.",
+  "description": "Fabric 1.21.4 client mod with a command-opened GUI and individually configurable combat helper features.",
   "authors": ["HIKARI_138"],
   "environment": "client",
-  "entrypoints": {
-    "client": ["hikari.autofighterai.AutoFighterAIClient"]
-  },
+  "entrypoints": { "client": ["hikari.autofighterai.AutoFighterAIClient"] },
   "depends": {
     "fabricloader": ">=0.16.0",
     "minecraft": "~1.21.4",

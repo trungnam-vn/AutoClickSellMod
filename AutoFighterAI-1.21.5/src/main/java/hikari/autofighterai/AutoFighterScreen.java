@@ -1,38 +1,60 @@
 package hikari.autofighterai;
 
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
 import net.minecraft.text.Text;
 
 public final class AutoFighterScreen extends Screen {
-    private static final int BUTTON_W = 220;
+    private static final int BUTTON_W = 166;
     private static final int BUTTON_H = 20;
+    private int leftX;
+    private int rightX;
     private int topY;
 
     public AutoFighterScreen() {
-        super(Text.literal("Auto Fighter AI — Target Display"));
+        super(Text.literal("Auto Fighter AI — Target & Navigation"));
     }
 
     @Override
     protected void init() {
-        topY = height / 2 - 32;
-        int x = width / 2 - BUTTON_W / 2;
+        int gap = 8;
+        leftX = width / 2 - BUTTON_W - gap / 2;
+        rightX = width / 2 + gap / 2;
+        topY = height / 2 - 38;
 
-        addDrawableChild(ButtonWidget.builder(
-            buttonText("Target Tracking", AutoFighterAIClient.trackingEnabled), button -> {
-                AutoFighterAIClient.setFeature("tracking", !AutoFighterAIClient.trackingEnabled);
-                button.setMessage(buttonText("Target Tracking", AutoFighterAIClient.trackingEnabled));
-            }).dimensions(x, topY, BUTTON_W, BUTTON_H).build());
+        addToggle("Target Tracking", "tracking",
+            () -> AutoFighterAIClient.trackingEnabled, leftX, topY);
+        addToggle("Target Outline", "glow",
+            () -> AutoFighterAIClient.targetGlowEnabled, rightX, topY);
 
-        addDrawableChild(ButtonWidget.builder(
-            buttonText("Target Glow Outline", AutoFighterAIClient.targetGlowEnabled), button -> {
-                AutoFighterAIClient.setFeature("glow", !AutoFighterAIClient.targetGlowEnabled);
-                button.setMessage(buttonText("Target Glow Outline", AutoFighterAIClient.targetGlowEnabled));
-            }).dimensions(x, topY + 27, BUTTON_W, BUTTON_H).build());
+        addToggle("Waypoint Navigation", "navigation",
+            () -> AutoFighterAIClient.navigationEnabled, leftX, topY + 25);
+        addDrawableChild(ButtonWidget.builder(Text.literal("Set Marker"), button -> {
+            boolean ok = AutoFighterAIClient.markWaypointFromGui();
+            if (!ok && MinecraftClient.getInstance().player != null) {
+                MinecraftClient.getInstance().player.sendMessage(
+                    Text.literal("§cLook at a block first, then click Set Marker."), true
+                );
+            }
+            clearAndInit();
+        }).dimensions(rightX, topY + 25, BUTTON_W, BUTTON_H).build());
 
+        addDrawableChild(ButtonWidget.builder(Text.literal("Clear Marker"), button -> {
+            AutoFighterAIClient.clearWaypointFromGui();
+            clearAndInit();
+        }).dimensions(leftX, topY + 50, BUTTON_W, BUTTON_H).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Close"), button -> close())
-            .dimensions(x, topY + 54, BUTTON_W, BUTTON_H).build());
+            .dimensions(rightX, topY + 50, BUTTON_W, BUTTON_H).build());
+    }
+
+    private void addToggle(String label, String key,
+                           java.util.function.BooleanSupplier getter, int x, int y) {
+        addDrawableChild(ButtonWidget.builder(buttonText(label, getter.getAsBoolean()), button -> {
+            AutoFighterAIClient.setFeature(key, !getter.getAsBoolean());
+            button.setMessage(buttonText(label, getter.getAsBoolean()));
+        }).dimensions(x, y, BUTTON_W, BUTTON_H).build());
     }
 
     private Text buttonText(String label, boolean state) {
@@ -45,12 +67,14 @@ public final class AutoFighterScreen extends Screen {
         context.drawCenteredTextWithShadow(textRenderer, title, width / 2, topY - 25, 0xFFFFFF);
         context.drawCenteredTextWithShadow(
             textRenderer,
-            Text.literal("Visual-only • 20-block range • no auto-combat"),
-            width / 2, topY - 10, 0xB8C7FF
+            Text.literal("Look at a block to set a marker. G = tracking, H = GUI."),
+            width / 2, topY - 11, 0xB8C7FF
         );
         super.render(context, mouseX, mouseY, delta);
     }
 
     @Override
-    public boolean shouldPause() { return false; }
+    public boolean shouldPause() {
+        return false;
+    }
 }

@@ -41,6 +41,9 @@ public final class AutoFighterAIClient implements ClientModInitializer {
 
     private static final double RANGE_SQUARED = 400.0;
     private static final double ATTACK_RANGE_SQUARED = 3.2 * 3.2;
+    // Hysteresis prevents forward movement from rapidly toggling near the attack boundary.
+    private static final double APPROACH_STOP_SQUARED = 2.25 * 2.25;
+    private static final double APPROACH_RESUME_SQUARED = 3.0 * 3.0;
     private static final Random RANDOM = new Random();
     private static final Path CONFIG = FabricLoader.getInstance().getConfigDir().resolve("autofighterai.properties");
     private static KeyBinding toggleKey;
@@ -49,6 +52,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
     private static boolean dodgeLeft, jumpPending;
     // Track only key states this mod itself pressed so normal player movement is not blocked.
     private static boolean aiForward, aiSprint, aiLeft, aiRight;
+    private static boolean approachMoving;
     private static HostileEntity jumpTarget;
 
     @Override
@@ -85,6 +89,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
                             return 1;
                         })))));
             dispatcher.register(literal("afai").executes(context -> { openGui(); return 1; }));
+            dispatcher.register(literal("autofightergui").executes(context -> { openGui(); return 1; }));
         });
         ClientTickEvents.END_CLIENT_TICK.register(AutoFighterAIClient::onTick);
     }
@@ -203,8 +208,12 @@ public final class AutoFighterAIClient implements ClientModInitializer {
             } else {
                 target = jumpTarget;
                 dist = client.player.squaredDistanceTo(target);
-                if (approachEnabled) setAIForward(client, dist > ATTACK_RANGE_SQUARED);
-                else setAIForward(client, false);
+                if (approachEnabled) updateApproachMovement(client, dist);
+                else {
+                    approachMoving = false;
+                    setAIForward(client, false);
+                    setAISprint(client, false);
+                }
                 if (attackEnabled && dist <= ATTACK_RANGE_SQUARED && !client.player.isOnGround()
                     && client.player.getVelocity().y < 0 && client.player.fallDistance > 0
                     && client.player.getAttackCooldownProgress(0.5F) >= 1.0F) {
@@ -217,9 +226,9 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         }
 
         if (approachEnabled) {
-            setAIForward(client, dist > ATTACK_RANGE_SQUARED);
-            setAISprint(client, dist > 64.0);
+            updateApproachMovement(client, dist);
         } else {
+            approachMoving = false;
             setAIForward(client, false);
             setAISprint(client, false);
         }
@@ -259,8 +268,9 @@ public final class AutoFighterAIClient implements ClientModInitializer {
     }
 
     private static void attack(MinecraftClient client, HostileEntity target) {
-        setAIForward(client, false);
-        setAISprint(client, false);
+        // Do not clear the forward key on every hit: that produced a stop-go stutter
+        // while the attack cooldown was refilling. Movement is controlled by the
+        // hysteresis-based approach logic above.
         client.interactionManager.attackEntity(client.player, target);
         client.player.swingHand(Hand.MAIN_HAND);
     }
@@ -325,7 +335,15 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         else if (aiRight) { client.options.rightKey.setPressed(false); aiRight = false; }
     }
 
+    private static void updateApproachMovement(MinecraftClient client, double dist) {
+        if (dist >= APPROACH_RESUME_SQUARED) approachMoving = true;
+        else if (dist <= APPROACH_STOP_SQUARED) approachMoving = false;
+        setAIForward(client, approachMoving);
+        setAISprint(client, approachMoving && dist > 64.0);
+    }
+
     private static void stopMovement(MinecraftClient client) {
+        approachMoving = false;
         setAIForward(client, false);
         setAISprint(client, false);
         setAILeft(client, false);

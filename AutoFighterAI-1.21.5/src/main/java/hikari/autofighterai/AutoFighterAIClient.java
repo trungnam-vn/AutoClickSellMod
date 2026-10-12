@@ -14,6 +14,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
 import net.minecraft.util.Hand;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.MathHelper;
 import org.lwjgl.glfw.GLFW;
@@ -68,6 +69,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
     private static boolean originalRightPressed;
     private static int dodgeTicks;
     private static int dodgeCooldown;
+    private static int obstacleJumpCooldown;
     private static boolean dodgeLeft;
     private static int eatTicks;
     private static int previousSlot = -1;
@@ -232,6 +234,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
 
         ticks++;
         if (dodgeCooldown > 0) dodgeCooldown--;
+        if (obstacleJumpCooldown > 0) obstacleJumpCooldown--;
 
         if (eatTicks > 0) {
             stopMovement(client);
@@ -264,6 +267,9 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         } else {
             stopMovement(client);
         }
+
+        // Jump proactively when AI-driven forward movement approaches a one-block obstacle.
+        tryJumpOverObstacle(client);
     }
 
     private static HostileEntity nearestHostile(MinecraftClient client) {
@@ -402,6 +408,38 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         waypointReached = false;
         stopMovement(MinecraftClient.getInstance());
         saveSettings();
+    }
+
+    private static void tryJumpOverObstacle(MinecraftClient client) {
+        if (client == null || client.player == null || client.world == null
+            || !aiForward || !client.player.isOnGround() || obstacleJumpCooldown > 0) return;
+
+        var player = client.player;
+        double yawRadians = Math.toRadians(player.getYaw());
+        double forwardX = -Math.sin(yawRadians);
+        double forwardZ = Math.cos(yawRadians);
+
+        // Probe just in front of the player's bounding box, at foot height.
+        BlockPos front = BlockPos.ofFloored(
+            player.getX() + forwardX * 0.75,
+            player.getY() + 0.05,
+            player.getZ() + forwardZ * 0.75
+        );
+        BlockPos head = front.up();
+        BlockPos aboveHead = head.up();
+
+        boolean obstacleAtFeet = !client.world.getBlockState(front)
+            .getCollisionShape(client.world, front).isEmpty();
+        boolean headSpaceClear = client.world.getBlockState(head)
+            .getCollisionShape(client.world, head).isEmpty();
+        boolean aboveHeadClear = client.world.getBlockState(aboveHead)
+            .getCollisionShape(client.world, aboveHead).isEmpty();
+
+        // Only auto-jump over a low obstacle with enough space to avoid hitting a ceiling.
+        if (obstacleAtFeet && headSpaceClear && aboveHeadClear) {
+            player.jump();
+            obstacleJumpCooldown = 10;
+        }
     }
 
     private static void navigateToWaypoint(MinecraftClient client) {

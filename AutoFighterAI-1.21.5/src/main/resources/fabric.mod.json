@@ -4,13 +4,25 @@
   "version": "${version}",
   "name": "Auto Fighter AI — AFK Mob Farming",
   "description": "Fabric client mod for Minecraft 1.21.5 with automatic PvE mob combat, approach movement, evasive movement, low-health auto-eating, and optional waypoint navigation.",
-  "authors": ["HIKARI_138"],
+  "authors": [
+    "HIKARI_138"
+  ],
   "environment": "client",
-  "entrypoints": { "client": ["hikari.autofighterai.AutoFighterAIClient"] },
+  "entrypoints": {
+    "client": [
+      "hikari.autofighterai.AutoFighterAIClient"
+    ]
+  },
   "depends": {
     "fabricloader": ">=0.16.0",
     "minecraft": "~1.21.5",
     "java": ">=21",
     "fabric-api": "*"
-  }
+  },
+  "mixins": [
+    {
+      "config": "autofighterai.client.mixins.json",
+      "environment": "client"
+    }
+  ]
 }

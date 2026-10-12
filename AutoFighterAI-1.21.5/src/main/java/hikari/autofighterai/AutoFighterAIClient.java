@@ -141,6 +141,19 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(AutoFighterAIClient::onTick);
     }
 
+    /**
+     * True when AI-driven movement should override Minecraft's normal keyboard input
+     * while the player's inventory screen is open.
+     */
+    public static boolean shouldApplyInventoryAiInput() {
+        return masterEnabled && movementEnabled && (aiForward || aiLeft || aiRight);
+    }
+
+    public static boolean aiForwardIntent() { return aiForward; }
+    public static boolean aiLeftIntent() { return aiLeft; }
+    public static boolean aiRightIntent() { return aiRight; }
+    public static boolean aiSprintIntent() { return aiSprint; }
+
     public static void setFeature(String name, boolean state) {
         switch (name.toLowerCase()) {
             case "combat" -> autoCombatEnabled = state;

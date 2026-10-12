@@ -35,6 +35,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: AutoFighterAI-1.21.5-TARGET-NAV-0.8.1-JAR
-          path: AutoFighterAI-1.21.5/build/libs/AutoFighterAI-1.21.5-TARGET-NAV-0.8.0.jar
+          path: AutoFighterAI-1.21.5/build/libs/AutoFighterAI-1.21.5-TARGET-NAV-0.8.1.jar
           if-no-files-found: error
           retention-days: 30

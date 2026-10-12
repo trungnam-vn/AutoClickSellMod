@@ -14,7 +14,7 @@ public final class AutoFighterScreen extends Screen {
     private int topY;
 
     public AutoFighterScreen() {
-        super(Text.literal("Auto Fighter AI — Target & Navigation"));
+        super(Text.literal("Auto Fighter AI — AFK Mob Farm"));
     }
 
     @Override
@@ -22,15 +22,15 @@ public final class AutoFighterScreen extends Screen {
         int gap = 8;
         leftX = width / 2 - BUTTON_W - gap / 2;
         rightX = width / 2 + gap / 2;
-        topY = height / 2 - 38;
+        topY = height / 2 - 68;
 
-        addToggle("Target Tracking", "tracking",
-            () -> AutoFighterAIClient.trackingEnabled, leftX, topY);
-        addToggle("Target Outline", "glow",
-            () -> AutoFighterAIClient.targetGlowEnabled, rightX, topY);
+        addToggle("Auto Combat", "combat", () -> AutoFighterAIClient.autoCombatEnabled, leftX, topY);
+        addToggle("Approach Target", "approach", () -> AutoFighterAIClient.approachEnabled, rightX, topY);
 
-        addToggle("Waypoint Navigation", "navigation",
-            () -> AutoFighterAIClient.navigationEnabled, leftX, topY + 25);
+        addToggle("Dodge Attacks", "dodge", () -> AutoFighterAIClient.dodgeEnabled, leftX, topY + 25);
+        addToggle("Auto Eat (Low HP)", "eat", () -> AutoFighterAIClient.autoEatEnabled, rightX, topY + 25);
+
+        addToggle("Waypoint Navigation", "navigation", () -> AutoFighterAIClient.navigationEnabled, leftX, topY + 50);
         addDrawableChild(ButtonWidget.builder(Text.literal("Set Marker"), button -> {
             boolean ok = AutoFighterAIClient.markWaypointFromGui();
             if (!ok && MinecraftClient.getInstance().player != null) {
@@ -39,14 +39,14 @@ public final class AutoFighterScreen extends Screen {
                 );
             }
             clearAndInit();
-        }).dimensions(rightX, topY + 25, BUTTON_W, BUTTON_H).build());
+        }).dimensions(rightX, topY + 50, BUTTON_W, BUTTON_H).build());
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Clear Marker"), button -> {
             AutoFighterAIClient.clearWaypointFromGui();
             clearAndInit();
-        }).dimensions(leftX, topY + 50, BUTTON_W, BUTTON_H).build());
+        }).dimensions(leftX, topY + 75, BUTTON_W, BUTTON_H).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Close"), button -> close())
-            .dimensions(rightX, topY + 50, BUTTON_W, BUTTON_H).build());
+            .dimensions(rightX, topY + 75, BUTTON_W, BUTTON_H).build());
     }
 
     private void addToggle(String label, String key,
@@ -65,16 +65,12 @@ public final class AutoFighterScreen extends Screen {
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         renderBackground(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(textRenderer, title, width / 2, topY - 25, 0xFFFFFF);
-        context.drawCenteredTextWithShadow(
-            textRenderer,
-            Text.literal("Look at a block to set a marker. G = tracking, H = GUI."),
-            width / 2, topY - 11, 0xB8C7FF
-        );
+        context.drawCenteredTextWithShadow(textRenderer,
+            Text.literal("H = GUI • G = toggle auto combat • nearest mob within 20 blocks"),
+            width / 2, topY - 11, 0xB8C7FF);
         super.render(context, mouseX, mouseY, delta);
     }
 
     @Override
-    public boolean shouldPause() {
-        return false;
-    }
+    public boolean shouldPause() { return false; }
 }

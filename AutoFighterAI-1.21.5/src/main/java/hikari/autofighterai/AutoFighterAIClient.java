@@ -4,20 +4,18 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexRendering;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.component.DataComponentTypes;
 import net.minecraft.entity.mob.HostileEntity;
+import net.minecraft.item.ItemStack;
+import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
+import net.minecraft.util.Hand;
 import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
-import net.minecraft.util.math.Vec3d;
 import org.lwjgl.glfw.GLFW;
 
 import java.io.InputStream;
@@ -26,37 +24,55 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.Properties;
+import java.util.Random;
 
 import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
 
 /**
- * Client-side target highlighter and waypoint navigation helper.
- * It intentionally does not attack entities or select/use weapons.
+ * AFK mob-farming helper for Minecraft 1.21.5.
+ * No target lock and no outline: it continuously picks the currently nearest hostile.
  */
 public final class AutoFighterAIClient implements ClientModInitializer {
-    public static boolean trackingEnabled = true;
-    public static boolean targetGlowEnabled = true;
+    public static boolean autoCombatEnabled = true;
+    public static boolean approachEnabled = true;
+    public static boolean dodgeEnabled = true;
+    public static boolean autoEatEnabled = true;
     public static boolean navigationEnabled = false;
     public static boolean waypointSet = false;
     public static double waypointX;
     public static double waypointY;
     public static double waypointZ;
 
-    private static final double RANGE_SQUARED = 20.0 * 20.0;
+    private static final double TARGET_RANGE = 20.0;
+    private static final double RANGE_SQUARED = TARGET_RANGE * TARGET_RANGE;
+    private static final double ATTACK_RANGE_SQUARED = 3.15 * 3.15;
+    private static final double APPROACH_STOP_SQUARED = 2.30 * 2.30;
+    private static final double APPROACH_RESUME_SQUARED = 3.10 * 3.10;
+    private static final Random RANDOM = new Random();
     private static final Path CONFIG = FabricLoader.getInstance().getConfigDir()
         .resolve("autofighterai.properties");
 
     private static KeyBinding toggleKey;
     private static KeyBinding guiKey;
     private static boolean guiOpenRequested;
-    private static HostileEntity cachedTarget;
-    private static int targetScanCooldown;
     private static String waypointDimension = "";
     private static boolean waypointReached;
+    private static boolean approachMoving;
     private static boolean aiForward;
     private static boolean aiSprint;
+    private static boolean aiLeft;
+    private static boolean aiRight;
     private static boolean originalForwardPressed;
     private static boolean originalSprintPressed;
+    private static boolean originalLeftPressed;
+    private static boolean originalRightPressed;
+    private static int dodgeTicks;
+    private static int dodgeCooldown;
+    private static boolean dodgeLeft;
+    private static int eatTicks;
+    private static int previousSlot = -1;
+    private static int foodUses;
+    private static int ticks;
 
     @Override
     public void onInitializeClient() {
@@ -76,24 +92,30 @@ public final class AutoFighterAIClient implements ClientModInitializer {
                 .executes(context -> { openGui(); return 1; })
                 .then(literal("gui").executes(context -> { openGui(); return 1; }))
                 .then(literal("on").executes(context -> {
-                    setTrackingEnabled(true);
-                    context.getSource().sendFeedback(Text.literal("Target tracking: ON"));
+                    setFeature("combat", true);
+                    context.getSource().sendFeedback(Text.literal("Auto combat: ON"));
                     return 1;
                 }))
                 .then(literal("off").executes(context -> {
-                    setTrackingEnabled(false);
-                    context.getSource().sendFeedback(Text.literal("Target tracking: OFF"));
+                    setFeature("combat", false);
+                    context.getSource().sendFeedback(Text.literal("Auto combat: OFF"));
                     return 1;
                 })));
 
             dispatcher.register(literal("afai")
                 .executes(context -> { openGui(); return 1; })
                 .then(literal("gui").executes(context -> { openGui(); return 1; }))
+                .then(literal("combat").executes(context -> {
+                    setFeature("combat", !autoCombatEnabled);
+                    context.getSource().sendFeedback(Text.literal("Auto combat: "
+                        + (autoCombatEnabled ? "ON" : "OFF")));
+                    return 1;
+                }))
                 .then(literal("mark").executes(context -> {
                     boolean result = setWaypointFromCrosshair(MinecraftClient.getInstance());
                     context.getSource().sendFeedback(Text.literal(result
-                        ? "Waypoint saved at the block you're looking at."
-                        : "Look at a block, then run /afai mark."));
+                        ? "Waypoint set at the block you're looking at."
+                        : "Look at a block first, then run /afai mark."));
                     return result ? 1 : 0;
                 }))
                 .then(literal("clear").executes(context -> {
@@ -112,74 +134,37 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         });
 
         ClientTickEvents.END_CLIENT_TICK.register(AutoFighterAIClient::onTick);
-
-        // Draw a bright, camera-relative outline around the locked target. This avoids
-        // relying on the server-synchronized glowing entity flag, which can be reset.
-        WorldRenderEvents.AFTER_ENTITIES.register(context -> {
-            if (!trackingEnabled || !targetGlowEnabled || cachedTarget == null
-                || context.world() == null || context.matrixStack() == null
-                || context.consumers() == null) {
-                return;
-            }
-
-            HostileEntity target = cachedTarget;
-            if (target.isRemoved() || !target.isAlive() || target.getWorld() != context.world()) {
-                return;
-            }
-
-            Vec3d camera = context.camera().getPos();
-            Box localBox = target.getBoundingBox()
-                .offset(-target.getX(), -target.getY(), -target.getZ())
-                .expand(0.045);
-
-            var matrices = context.matrixStack();
-            matrices.push();
-            matrices.translate(
-                target.getX() - camera.x,
-                target.getY() - camera.y,
-                target.getZ() - camera.z
-            );
-            VertexConsumer lines = context.consumers().getBuffer(RenderLayer.getLines());
-            VertexRendering.drawBox(matrices, lines, localBox, 0.12F, 0.95F, 1.0F, 1.0F);
-            matrices.pop();
-        });
     }
 
     public static void setFeature(String name, boolean state) {
         switch (name.toLowerCase()) {
-            case "tracking" -> setTrackingEnabled(state);
-            case "glow" -> {
-                targetGlowEnabled = state;
-                saveSettings();
-            }
+            case "combat" -> autoCombatEnabled = state;
+            case "approach" -> approachEnabled = state;
+            case "dodge" -> dodgeEnabled = state;
+            case "eat" -> autoEatEnabled = state;
             case "navigation", "nav" -> setNavigationEnabled(state);
-            default -> { }
+            default -> { return; }
         }
-    }
-
-    private static void setTrackingEnabled(boolean state) {
-        trackingEnabled = state;
-        if (!state) {
-            cachedTarget = null;
-            targetScanCooldown = 0;
+        if (!state && (name.equalsIgnoreCase("combat") || name.equalsIgnoreCase("approach")
+            || name.equalsIgnoreCase("navigation") || name.equalsIgnoreCase("nav"))) {
+            stopMovement(MinecraftClient.getInstance());
         }
         saveSettings();
     }
 
     private static void setNavigationEnabled(boolean state) {
         navigationEnabled = state && waypointSet;
-        if (!navigationEnabled) {
-            stopMovement(MinecraftClient.getInstance());
-        } else {
-            waypointReached = false;
-        }
+        waypointReached = false;
         saveSettings();
+        if (!navigationEnabled && !autoCombatEnabled) stopMovement(MinecraftClient.getInstance());
     }
 
     public static void saveSettings() {
         Properties p = new Properties();
-        p.setProperty("tracking", Boolean.toString(trackingEnabled));
-        p.setProperty("targetGlow", Boolean.toString(targetGlowEnabled));
+        p.setProperty("combat", Boolean.toString(autoCombatEnabled));
+        p.setProperty("approach", Boolean.toString(approachEnabled));
+        p.setProperty("dodge", Boolean.toString(dodgeEnabled));
+        p.setProperty("eat", Boolean.toString(autoEatEnabled));
         p.setProperty("navigation", Boolean.toString(navigationEnabled));
         p.setProperty("waypointSet", Boolean.toString(waypointSet));
         p.setProperty("waypointX", Double.toString(waypointX));
@@ -189,7 +174,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         try {
             Files.createDirectories(CONFIG.getParent());
             try (OutputStream out = Files.newOutputStream(CONFIG)) {
-                p.store(out, "Auto Fighter AI target display and waypoint navigation");
+                p.store(out, "Auto Fighter AI AFK mob farming settings");
             }
         } catch (Exception ignored) { }
     }
@@ -199,8 +184,10 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         Properties p = new Properties();
         try (InputStream in = Files.newInputStream(CONFIG)) {
             p.load(in);
-            trackingEnabled = Boolean.parseBoolean(p.getProperty("tracking", "true"));
-            targetGlowEnabled = Boolean.parseBoolean(p.getProperty("targetGlow", "true"));
+            autoCombatEnabled = Boolean.parseBoolean(p.getProperty("combat", "true"));
+            approachEnabled = Boolean.parseBoolean(p.getProperty("approach", "true"));
+            dodgeEnabled = Boolean.parseBoolean(p.getProperty("dodge", "true"));
+            autoEatEnabled = Boolean.parseBoolean(p.getProperty("eat", "true"));
             navigationEnabled = Boolean.parseBoolean(p.getProperty("navigation", "false"));
             waypointSet = Boolean.parseBoolean(p.getProperty("waypointSet", "false"));
             waypointX = Double.parseDouble(p.getProperty("waypointX", "0"));
@@ -219,73 +206,167 @@ public final class AutoFighterAIClient implements ClientModInitializer {
             guiOpenRequested = false;
             client.setScreen(new AutoFighterScreen());
         }
-        while (guiKey.wasPressed()) {
-            client.setScreen(new AutoFighterScreen());
-        }
+        while (guiKey.wasPressed()) client.setScreen(new AutoFighterScreen());
         while (toggleKey.wasPressed()) {
-            setTrackingEnabled(!trackingEnabled);
+            setFeature("combat", !autoCombatEnabled);
             if (client.player != null) {
-                client.player.sendMessage(Text.literal(trackingEnabled
-                    ? "§aTarget tracking: ON" : "§7Target tracking: OFF"), true);
+                client.player.sendMessage(Text.literal(autoCombatEnabled
+                    ? "§aAuto Combat: ON" : "§7Auto Combat: OFF"), true);
             }
         }
 
         if (client.player == null || client.world == null) {
-            cachedTarget = null;
-            targetScanCooldown = 0;
             stopMovement(client);
+            stopEating(client);
             return;
         }
-
         if (client.currentScreen != null) {
             stopMovement(client);
+            if (eatTicks > 0) stopEating(client);
+            return;
+        }
+        if (client.interactionManager == null) {
+            stopMovement(client);
             return;
         }
 
-        if (trackingEnabled) {
-            cachedTarget = getCachedTarget(client);
-        } else {
-            cachedTarget = null;
-            targetScanCooldown = 0;
+        ticks++;
+        if (dodgeCooldown > 0) dodgeCooldown--;
+
+        if (eatTicks > 0) {
+            stopMovement(client);
+            client.options.useKey.setPressed(true);
+            if (--eatTicks <= 0) stopEating(client);
+            return;
         }
 
-        if (navigationEnabled) {
+        if (autoEatEnabled && client.player.getHealth() <= 10.0F && foodUses < 2
+            && client.player.getHungerManager().getFoodLevel() < 20 && ticks % 8 == 0) {
+            int foodSlot = findFoodSlot(client);
+            if (foodSlot >= 0) {
+                previousSlot = client.player.getInventory().getSelectedSlot();
+                client.player.getInventory().setSelectedSlot(foodSlot);
+                eatTicks = 36;
+                foodUses++;
+                client.options.useKey.setPressed(true);
+                stopMovement(client);
+                return;
+            }
+        }
+        if (client.player.getHealth() > 16.0F) foodUses = 0;
+
+        // No target lock: reacquire the nearest hostile in range every tick.
+        HostileEntity target = autoCombatEnabled ? nearestHostile(client) : null;
+        if (target != null) {
+            fightTarget(client, target);
+        } else if (navigationEnabled && waypointSet) {
             navigateToWaypoint(client);
         } else {
             stopMovement(client);
         }
     }
 
-    // Refresh the lock to whichever hostile is currently nearest, every few ticks.
-    // The outline renderer reads this exact entity, so pin and outline cannot diverge.
-    private static HostileEntity getCachedTarget(MinecraftClient client) {
-        if (cachedTarget != null && (!cachedTarget.isAlive() || cachedTarget.isRemoved()
-            || cachedTarget.getWorld() != client.world
-            || client.player.squaredDistanceTo(cachedTarget) > RANGE_SQUARED)) {
-            cachedTarget = null;
-            targetScanCooldown = 0;
-        }
-
-        if (targetScanCooldown <= 0) {
-            cachedTarget = nearestHostile(client);
-            targetScanCooldown = 3;
-        } else {
-            targetScanCooldown--;
-        }
-        return cachedTarget;
-    }
-
     private static HostileEntity nearestHostile(MinecraftClient client) {
         return client.world.getEntitiesByClass(
                 HostileEntity.class,
-                client.player.getBoundingBox().expand(20.0),
-                e -> e.isAlive()
-                    && !e.isRemoved()
+                client.player.getBoundingBox().expand(TARGET_RANGE),
+                e -> e.isAlive() && !e.isRemoved()
                     && client.player.squaredDistanceTo(e) <= RANGE_SQUARED
             )
             .stream()
             .min(Comparator.comparingDouble(client.player::squaredDistanceTo))
             .orElse(null);
+    }
+
+    private static void fightTarget(MinecraftClient client, HostileEntity target) {
+        var player = client.player;
+        double distanceSquared = player.squaredDistanceTo(target);
+        aimAtTarget(client, target);
+
+        if (approachEnabled) {
+            updateApproachMovement(client, distanceSquared);
+        } else {
+            approachMoving = false;
+            setAIForward(client, false);
+            setAISprint(client, false);
+        }
+
+        if (dodgeEnabled && player.hurtTime > 0 && distanceSquared <= 144.0 && dodgeCooldown == 0) {
+            dodgeLeft = RANDOM.nextBoolean();
+            dodgeTicks = 8;
+            dodgeCooldown = 28;
+            if (player.isOnGround()) player.jump();
+        }
+        if (dodgeEnabled && dodgeTicks > 0) {
+            setAILeft(client, dodgeLeft);
+            setAIRight(client, !dodgeLeft);
+            dodgeTicks--;
+        } else {
+            setAILeft(client, false);
+            setAIRight(client, false);
+        }
+
+        if (distanceSquared <= ATTACK_RANGE_SQUARED
+            && player.getAttackCooldownProgress(0.5F) >= 1.0F) {
+            selectWeapon(client);
+            client.interactionManager.attackEntity(player, target);
+            player.swingHand(Hand.MAIN_HAND);
+        }
+    }
+
+    private static void aimAtTarget(MinecraftClient client, HostileEntity target) {
+        var player = client.player;
+        double dx = target.getX() - player.getX();
+        double dz = target.getZ() - player.getZ();
+        double dy = target.getY() + target.getHeight() * 0.55 - player.getEyeY();
+        double horizontal = Math.sqrt(dx * dx + dz * dz);
+        float targetYaw = (float)(MathHelper.atan2(dz, dx) * 180.0 / Math.PI) - 90.0F;
+        float yawDifference = MathHelper.wrapDegrees(targetYaw - player.getYaw());
+        player.setYaw(player.getYaw() + MathHelper.clamp(yawDifference, -10.0F, 10.0F));
+
+        float targetPitch = (float)(-MathHelper.atan2(dy, horizontal) * 180.0 / Math.PI);
+        float pitchDifference = MathHelper.wrapDegrees(targetPitch - player.getPitch());
+        player.setPitch(player.getPitch() + MathHelper.clamp(pitchDifference, -7.0F, 7.0F));
+    }
+
+    private static void selectWeapon(MinecraftClient client) {
+        int swordSlot = -1;
+        int axeSlot = -1;
+        for (int i = 0; i < 9; i++) {
+            ItemStack stack = client.player.getInventory().getStack(i);
+            if (stack.isEmpty()) continue;
+            String path = Registries.ITEM.getId(stack.getItem()).getPath();
+            if (path.endsWith("_sword")) {
+                swordSlot = i;
+                break;
+            }
+            if (axeSlot < 0 && path.endsWith("_axe")) axeSlot = i;
+        }
+        int slot = swordSlot >= 0 ? swordSlot : axeSlot;
+        if (slot >= 0) client.player.getInventory().setSelectedSlot(slot);
+    }
+
+    private static void updateApproachMovement(MinecraftClient client, double distanceSquared) {
+        if (distanceSquared >= APPROACH_RESUME_SQUARED) approachMoving = true;
+        else if (distanceSquared <= APPROACH_STOP_SQUARED) approachMoving = false;
+        setAIForward(client, approachMoving);
+        setAISprint(client, approachMoving && distanceSquared > 64.0);
+    }
+
+    private static int findFoodSlot(MinecraftClient client) {
+        for (int i = 0; i < 9; i++) {
+            ItemStack stack = client.player.getInventory().getStack(i);
+            if (!stack.isEmpty() && stack.get(DataComponentTypes.FOOD) != null) return i;
+        }
+        return -1;
+    }
+
+    private static void stopEating(MinecraftClient client) {
+        if (client != null && client.options != null) client.options.useKey.setPressed(false);
+        if (client != null && client.player != null && previousSlot >= 0 && previousSlot < 9)
+            client.player.getInventory().setSelectedSlot(previousSlot);
+        previousSlot = -1;
+        eatTicks = 0;
     }
 
     public static boolean markWaypointFromGui() {
@@ -298,9 +379,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
 
     private static boolean setWaypointFromCrosshair(MinecraftClient client) {
         if (client == null || client.player == null || client.world == null
-            || !(client.crosshairTarget instanceof BlockHitResult hit)) {
-            return false;
-        }
+            || !(client.crosshairTarget instanceof BlockHitResult hit)) return false;
 
         var pos = hit.getBlockPos();
         waypointX = pos.getX() + 0.5;
@@ -330,13 +409,11 @@ public final class AutoFighterAIClient implements ClientModInitializer {
             stopMovement(client);
             return;
         }
-
         var player = client.player;
         double dx = waypointX - player.getX();
         double dz = waypointZ - player.getZ();
-        double horizontalDistance = Math.sqrt(dx * dx + dz * dz);
-
-        if (horizontalDistance <= 1.2 && Math.abs(waypointY - player.getY()) <= 2.5) {
+        double distance = Math.sqrt(dx * dx + dz * dz);
+        if (distance <= 1.2 && Math.abs(waypointY - player.getY()) <= 2.5) {
             stopMovement(client);
             if (!waypointReached) {
                 player.sendMessage(Text.literal("§aReached waypoint."), true);
@@ -345,18 +422,12 @@ public final class AutoFighterAIClient implements ClientModInitializer {
             return;
         }
         waypointReached = false;
-
         float desiredYaw = (float)(MathHelper.atan2(dz, dx) * 180.0 / Math.PI) - 90.0F;
         float yawDelta = MathHelper.wrapDegrees(desiredYaw - player.getYaw());
         player.setYaw(player.getYaw() + MathHelper.clamp(yawDelta, -6.0F, 6.0F));
-
         setAIForward(client, true);
-        setAISprint(client, horizontalDistance > 6.0);
-
-        // Basic obstacle assist: jump when walking into a block while grounded.
-        if (player.horizontalCollision && player.isOnGround()) {
-            player.jump();
-        }
+        setAISprint(client, distance > 6.0);
+        if (player.horizontalCollision && player.isOnGround()) player.jump();
     }
 
     private static void openGui() {
@@ -387,8 +458,36 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         }
     }
 
+    private static void setAILeft(MinecraftClient client, boolean pressed) {
+        if (client == null || client.options == null) return;
+        if (pressed && !aiLeft) {
+            originalLeftPressed = client.options.leftKey.isPressed();
+            client.options.leftKey.setPressed(true);
+            aiLeft = true;
+        } else if (!pressed && aiLeft) {
+            client.options.leftKey.setPressed(originalLeftPressed);
+            aiLeft = false;
+        }
+    }
+
+    private static void setAIRight(MinecraftClient client, boolean pressed) {
+        if (client == null || client.options == null) return;
+        if (pressed && !aiRight) {
+            originalRightPressed = client.options.rightKey.isPressed();
+            client.options.rightKey.setPressed(true);
+            aiRight = true;
+        } else if (!pressed && aiRight) {
+            client.options.rightKey.setPressed(originalRightPressed);
+            aiRight = false;
+        }
+    }
+
     private static void stopMovement(MinecraftClient client) {
+        approachMoving = false;
         setAIForward(client, false);
         setAISprint(client, false);
+        setAILeft(client, false);
+        setAIRight(client, false);
+        dodgeTicks = 0;
     }
 }

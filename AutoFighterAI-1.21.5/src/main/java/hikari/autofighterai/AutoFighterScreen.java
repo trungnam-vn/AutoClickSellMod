@@ -22,15 +22,24 @@ public final class AutoFighterScreen extends Screen {
         int gap = 8;
         leftX = width / 2 - BUTTON_W - gap / 2;
         rightX = width / 2 + gap / 2;
-        topY = height / 2 - 68;
+        topY = height / 2 - 105;
 
-        addToggle("Auto Combat", "combat", () -> AutoFighterAIClient.autoCombatEnabled, leftX, topY);
-        addToggle("Approach Target", "approach", () -> AutoFighterAIClient.approachEnabled, rightX, topY);
-
-        addToggle("Dodge Attacks", "dodge", () -> AutoFighterAIClient.dodgeEnabled, leftX, topY + 25);
+        addToggle("AI Master (G)", "master", () -> AutoFighterAIClient.masterEnabled, leftX, topY);
+        addToggle("Auto Combat", "combat", () -> AutoFighterAIClient.autoCombatEnabled, rightX, topY);
+        addToggle("Movement", "movement", () -> AutoFighterAIClient.movementEnabled, leftX, topY + 25);
         addToggle("Auto Eat (Low HP)", "eat", () -> AutoFighterAIClient.autoEatEnabled, rightX, topY + 25);
+        addToggle("Dodge Attacks", "dodge", () -> AutoFighterAIClient.dodgeEnabled, leftX, topY + 50);
+        addToggle("Waypoint Navigation", "navigation", () -> AutoFighterAIClient.navigationEnabled, rightX, topY + 50);
 
-        addToggle("Waypoint Navigation", "navigation", () -> AutoFighterAIClient.navigationEnabled, leftX, topY + 50);
+        addDrawableChild(ButtonWidget.builder(Text.literal("Range −5"), button -> {
+            AutoFighterAIClient.adjustTargetRange(-5.0);
+            clearAndInit();
+        }).dimensions(leftX, topY + 75, BUTTON_W, BUTTON_H).build());
+        addDrawableChild(ButtonWidget.builder(Text.literal("Range +5"), button -> {
+            AutoFighterAIClient.adjustTargetRange(5.0);
+            clearAndInit();
+        }).dimensions(rightX, topY + 75, BUTTON_W, BUTTON_H).build());
+
         addDrawableChild(ButtonWidget.builder(Text.literal("Set Marker"), button -> {
             boolean ok = AutoFighterAIClient.markWaypointFromGui();
             if (!ok && MinecraftClient.getInstance().player != null) {
@@ -39,21 +48,24 @@ public final class AutoFighterScreen extends Screen {
                 );
             }
             clearAndInit();
-        }).dimensions(rightX, topY + 50, BUTTON_W, BUTTON_H).build());
+        }).dimensions(leftX, topY + 105, BUTTON_W, BUTTON_H).build());
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Clear Marker"), button -> {
             AutoFighterAIClient.clearWaypointFromGui();
             clearAndInit();
-        }).dimensions(leftX, topY + 75, BUTTON_W, BUTTON_H).build());
+        }).dimensions(rightX, topY + 105, BUTTON_W, BUTTON_H).build());
+
         addDrawableChild(ButtonWidget.builder(Text.literal("Close"), button -> close())
-            .dimensions(rightX, topY + 75, BUTTON_W, BUTTON_H).build());
+            .dimensions(width / 2 - BUTTON_W / 2, topY + 130, BUTTON_W, BUTTON_H).build());
     }
 
     private void addToggle(String label, String key,
                            java.util.function.BooleanSupplier getter, int x, int y) {
         addDrawableChild(ButtonWidget.builder(buttonText(label, getter.getAsBoolean()), button -> {
-            AutoFighterAIClient.setFeature(key, !getter.getAsBoolean());
-            button.setMessage(buttonText(label, getter.getAsBoolean()));
+            boolean nextState = !getter.getAsBoolean();
+            if ("master".equals(key)) AutoFighterAIClient.setMasterEnabled(nextState);
+            else AutoFighterAIClient.setFeature(key, nextState);
+            clearAndInit();
         }).dimensions(x, y, BUTTON_W, BUTTON_H).build());
     }
 
@@ -66,8 +78,10 @@ public final class AutoFighterScreen extends Screen {
         renderBackground(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(textRenderer, title, width / 2, topY - 25, 0xFFFFFF);
         context.drawCenteredTextWithShadow(textRenderer,
-            Text.literal("H = GUI • G = toggle auto combat • nearest mob within 20 blocks"),
-            width / 2, topY - 11, 0xB8C7FF);
+            Text.literal("G = toggle all AI • H = open settings"), width / 2, topY - 11, 0xB8C7FF);
+        context.drawCenteredTextWithShadow(textRenderer,
+            Text.literal("Mob search distance: " + (int) AutoFighterAIClient.targetRange + " blocks"),
+            width / 2, topY + 98, 0xFFD98A);
         super.render(context, mouseX, mouseY, delta);
     }
 

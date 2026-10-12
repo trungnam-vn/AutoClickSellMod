@@ -256,7 +256,8 @@ public final class AutoFighterAIClient implements ClientModInitializer {
         }
     }
 
-    // Keep the selected hostile until it dies, is removed, changes world, or leaves 20 blocks.
+    // Refresh the lock to whichever hostile is currently nearest, every few ticks.
+    // The outline renderer reads this exact entity, so pin and outline cannot diverge.
     private static HostileEntity getCachedTarget(MinecraftClient client) {
         if (cachedTarget != null && (!cachedTarget.isAlive() || cachedTarget.isRemoved()
             || cachedTarget.getWorld() != client.world
@@ -265,23 +266,22 @@ public final class AutoFighterAIClient implements ClientModInitializer {
             targetScanCooldown = 0;
         }
 
-        if (cachedTarget == null && targetScanCooldown <= 0) {
-            cachedTarget = nearestVisibleHostile(client);
-            targetScanCooldown = 4;
-        } else if (cachedTarget == null) {
+        if (targetScanCooldown <= 0) {
+            cachedTarget = nearestHostile(client);
+            targetScanCooldown = 3;
+        } else {
             targetScanCooldown--;
         }
         return cachedTarget;
     }
 
-    private static HostileEntity nearestVisibleHostile(MinecraftClient client) {
+    private static HostileEntity nearestHostile(MinecraftClient client) {
         return client.world.getEntitiesByClass(
                 HostileEntity.class,
                 client.player.getBoundingBox().expand(20.0),
                 e -> e.isAlive()
                     && !e.isRemoved()
                     && client.player.squaredDistanceTo(e) <= RANGE_SQUARED
-                    && client.player.canSee(e)
             )
             .stream()
             .min(Comparator.comparingDouble(client.player::squaredDistanceTo))

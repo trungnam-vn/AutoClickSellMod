@@ -28,13 +28,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          JAR="AutoFighterAI-1.21.5/build/libs/AutoFighterAI-1.21.5-TARGET-NAV-0.8.0.jar"
+          JAR="AutoFighterAI-1.21.5/build/libs/AutoFighterAI-1.21.5-TARGET-NAV-0.8.1.jar"
           test -s "$JAR"
           jar tf "$JAR" | grep -E 'fabric.mod.json|AutoFighterAIClient.class|AutoFighterScreen.class'
           unzip -p "$JAR" fabric.mod.json | grep -q '"id": "autofighterai"'
       - uses: actions/upload-artifact@v4
         with:
-          name: AutoFighterAI-1.21.5-TARGET-NAV-JAR
+          name: AutoFighterAI-1.21.5-TARGET-NAV-0.8.1-JAR
           path: AutoFighterAI-1.21.5/build/libs/AutoFighterAI-1.21.5-TARGET-NAV-0.8.0.jar
           if-no-files-found: error
           retention-days: 30

@@ -48,15 +48,15 @@ public final class AutoFighterScreen extends Screen {
                 );
             }
             clearAndInit();
-        }).dimensions(leftX, topY + 105, BUTTON_W, BUTTON_H).build());
+        }).dimensions(leftX, topY + 115, BUTTON_W, BUTTON_H).build());
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Clear Marker"), button -> {
             AutoFighterAIClient.clearWaypointFromGui();
             clearAndInit();
-        }).dimensions(rightX, topY + 105, BUTTON_W, BUTTON_H).build());
+        }).dimensions(rightX, topY + 115, BUTTON_W, BUTTON_H).build());
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Close"), button -> close())
-            .dimensions(width / 2 - BUTTON_W / 2, topY + 130, BUTTON_W, BUTTON_H).build());
+            .dimensions(width / 2 - BUTTON_W / 2, topY + 140, BUTTON_W, BUTTON_H).build());
     }
 
     private void addToggle(String label, String key,

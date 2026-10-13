@@ -301,6 +301,12 @@ public final class AutoFighterAIClient implements ClientModInitializer {
                 foodUses++;
                 client.options.useKey.setPressed(true);
                 stopMovement(client);
+                // The normal use-key path is ignored by the inventory screen.
+                // Start item use directly so auto-eating still works while E is open.
+                if (client.currentScreen instanceof InventoryScreen
+                    && client.interactionManager != null) {
+                    client.interactionManager.interactItem(client.player, Hand.MAIN_HAND);
+                }
                 return;
             }
         }

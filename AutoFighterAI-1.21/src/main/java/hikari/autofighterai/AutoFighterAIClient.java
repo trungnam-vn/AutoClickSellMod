@@ -295,8 +295,8 @@ public final class AutoFighterAIClient implements ClientModInitializer {
             && client.player.getHungerManager().getFoodLevel() < 20 && ticks % 8 == 0) {
             int foodSlot = findFoodSlot(client);
             if (foodSlot >= 0) {
-                previousSlot = client.player.getInventory().getSelectedSlot();
-                client.player.getInventory().setSelectedSlot(foodSlot);
+                previousSlot = client.player.getInventory().selectedSlot;
+                client.player.getInventory().selectedSlot = foodSlot;
                 eatTicks = 36;
                 foodUses++;
                 client.options.useKey.setPressed(true);
@@ -405,7 +405,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
             if (axeSlot < 0 && path.endsWith("_axe")) axeSlot = i;
         }
         int slot = swordSlot >= 0 ? swordSlot : axeSlot;
-        if (slot >= 0) client.player.getInventory().setSelectedSlot(slot);
+        if (slot >= 0) client.player.getInventory().selectedSlot = slot;
     }
 
     private static void updateApproachMovement(MinecraftClient client, double distanceSquared) {
@@ -426,7 +426,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
     private static void stopEating(MinecraftClient client) {
         if (client != null && client.options != null) client.options.useKey.setPressed(false);
         if (client != null && client.player != null && previousSlot >= 0 && previousSlot < 9)
-            client.player.getInventory().setSelectedSlot(previousSlot);
+            client.player.getInventory().selectedSlot = previousSlot;
         previousSlot = -1;
         eatTicks = 0;
     }

@@ -258,7 +258,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
             int foodSlot = findFoodSlot(client);
             if (foodSlot >= 0) {
                 previousSlot = client.player.getInventory().getSelectedSlot();
-                client.player.getInventory().selectedSlot = foodSlot;
+                client.player.getInventory().setSelectedSlot(foodSlot);
                 eatTicks = 36;
                 foodUses++;
                 client.options.useKey.setPressed(true);
@@ -295,7 +295,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
     private static void stopEating(MinecraftClient client) {
         if (client != null && client.options != null) client.options.useKey.setPressed(false);
         if (client != null && client.player != null && previousSlot >= 0 && previousSlot < 9) {
-            client.player.getInventory().selectedSlot = previousSlot;
+            client.player.getInventory().setSelectedSlot(previousSlot);
         }
         previousSlot = -1;
         eatTicks = 0;

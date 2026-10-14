@@ -13,6 +13,7 @@ import net.minecraft.component.DataComponentTypes;
 import net.minecraft.item.ItemStack;
 import net.minecraft.text.Text;
 import net.minecraft.util.Hand;
+import net.minecraft.util.Identifier;
 import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
@@ -43,6 +44,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
     private static final Path CONFIG = FabricLoader.getInstance().getConfigDir()
         .resolve("autofighterai.properties");
 
+    private static final KeyBinding.Category KEY_CATEGORY = KeyBinding.Category.create(Identifier.of("autofighterai", "general"));
     private static KeyBinding toggleKey;
     private static KeyBinding guiKey;
     private static boolean guiOpenRequested;
@@ -67,11 +69,11 @@ public final class AutoFighterAIClient implements ClientModInitializer {
 
         toggleKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
             "key.autofighterai.toggle", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_G,
-            "category.autofighterai"
+            KEY_CATEGORY
         ));
         guiKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
             "key.autofighterai.gui", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_H,
-            "category.autofighterai"
+            KEY_CATEGORY
         ));
 
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> {
@@ -255,7 +257,7 @@ public final class AutoFighterAIClient implements ClientModInitializer {
             && client.player.getHungerManager().getFoodLevel() < 20 && ticks % 8 == 0) {
             int foodSlot = findFoodSlot(client);
             if (foodSlot >= 0) {
-                previousSlot = client.player.getInventory().selectedSlot;
+                previousSlot = client.player.getInventory().getSelectedSlot();
                 client.player.getInventory().selectedSlot = foodSlot;
                 eatTicks = 36;
                 foodUses++;

@@ -1,0 +1,42 @@
+name: Build Auto Fighter AI 1.21.11 Survival Utilities
+
+on:
+  push:
+    branches:
+      - autofighterai-1.21.11-port
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.3'
+      - name: Build JAR
+        run: gradle --no-daemon --stacktrace clean build
+        working-directory: AutoFighterAI-1.21.11
+      - name: Verify JAR metadata and classes
+        shell: bash
+        run: |
+          set -euo pipefail
+          JAR="AutoFighterAI-1.21.11/build/libs/AutoFighterAI-1.21.11-SURVIVAL-0.9.7.jar"
+          test -s "$JAR"
+          jar tf "$JAR" | grep -E 'fabric.mod.json|AutoFighterAIClient.class|AutoFighterScreen.class|KeyboardInputMixin.class|autofighterai.client.mixins.json'
+          unzip -p "$JAR" fabric.mod.json | grep -q '"id": "autofighterai"'
+          unzip -p "$JAR" fabric.mod.json | grep -q '"minecraft": "~1.21.11"'
+          unzip -p "$JAR" autofighterai.client.mixins.json | grep -q 'KeyboardInputMixin'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AutoFighterAI-1.21.11-SURVIVAL-0.9.7-JAR
+          path: AutoFighterAI-1.21.11/build/libs/AutoFighterAI-1.21.11-SURVIVAL-0.9.7.jar
+          if-no-files-found: error
+          retention-days: 30

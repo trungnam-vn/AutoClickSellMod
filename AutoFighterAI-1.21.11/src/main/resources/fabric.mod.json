@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "autofighterai",
+  "version": "${version}",
+  "name": "Auto Fighter AI — Survival Utilities",
+  "description": "Fabric client utility mod for Minecraft 1.21.11: low-health auto-eating, waypoint navigation, obstacle jumping, configurable movement, inventory movement support, and a persistent settings GUI.",
+  "authors": ["HIKARI_138"],
+  "environment": "client",
+  "entrypoints": {
+    "client": ["hikari.autofighterai.AutoFighterAIClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "mixins": [
+    {
+      "config": "autofighterai.client.mixins.json",
+      "environment": "client"
+    }
+  ]
+}
